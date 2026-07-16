@@ -1,0 +1,53 @@
+docs/specs/ralph-v0.1.0.md
+  s_ed2cbfd306e511::t_e881bab6987e76 185
+  s_ed2cbfd306e511::t_e383c6e272b2fe 162,168,178
+  s_ed2cbfd306e511::t_608afa3a121fb5 71-156
+  s_279b0895cab3b7::t_f971f2bbf9cab5 29,241-242
+  s_f26be24c0a6d31::t_299cc95a041cc5 205-240
+  s_ae5abb26f9ba02::t_9f6420fab34264 10-22,35-67,160,163-166,169-177,179-181,189-204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "71455ddad6b376aa0d6a87760665d7f90031ee8c",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_279b0895cab3b7": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f69ab-e812-7458-9b03-35229622a48e",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_ae5abb26f9ba02": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f64d7-e501-715e-9f95-a837abc0b2cc",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_ed2cbfd306e511": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f64e7-c595-71ea-a8ce-ab04b10db8b9",
+        "model": "nim_nemotron-ultra-550b"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_f26be24c0a6d31": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f6987-bcc4-7584-96db-81ac0b58f7fa",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
