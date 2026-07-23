@@ -1,0 +1,9 @@
+{
+  "agent": {
+    "command": "pi",
+    "args": ["run", "--prompt"],
+    "prompt_delivery": "arg",
+    "env": {}
+  },
+  "max_retries": 3
+}
