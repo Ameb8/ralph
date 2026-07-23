@@ -1,0 +1,14 @@
+demo/ralph.sh
+  h_11a994996f9bb9 1-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "af1df11ccf11b60a1dbfdaafae6d98837b7b1651",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
