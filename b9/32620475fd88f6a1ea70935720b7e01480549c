@@ -1,0 +1,48 @@
+internal/agent/agent.go
+  s_4d897781e6e5ac::t_f800c79e7b3ccd 3-5
+  s_5ec5c84aab7660::t_ca661ad68b5eb0 1-2,6-9
+internal/orchestrator/orchestrator.go
+  s_4d897781e6e5ac::t_080e8392c6b7c7 5,15,27-32,36-40,46-47
+  s_5ec5c84aab7660::t_f3bb6f5b1835a9 1-4,6-14,16-26,33-35,41-45,48-49
+internal/github/github.go
+  s_4d897781e6e5ac::t_bb2be23073d888 3-5
+  s_5ec5c84aab7660::t_229481b37bae48 1-2,6-20
+internal/workspace/workspace.go
+  s_5ec5c84aab7660::t_867516f589262c 1-2,6-24
+  s_4d897781e6e5ac::t_fcc1b83fd06a26 3-5
+internal/prompt/prompt.go
+  s_5ec5c84aab7660::t_0eebcdac72030e 1-2,6-11
+  s_5ec5c84aab7660::t_e6c7059d753453 3-5
+internal/git/git.go
+  s_5ec5c84aab7660::t_31cde93808f138 1-2,6-11
+  s_4d897781e6e5ac::t_22931351b1f407 3-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "b932620475fd88f6a1ea70935720b7e01480549c",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_4d897781e6e5ac": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f8db8-dfde-7441-b30b-9ca4b1a9cd7a",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_5ec5c84aab7660": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f716b-b70f-771b-8acb-4f025ab722bd",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
