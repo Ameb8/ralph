@@ -1,0 +1,24 @@
+ARCHITECTURE.md
+  s_edaffcdae47da8::t_16fa3d53dbc848 1-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "8683335bc103c89fef9a03e2ac2df9eb8fa16bac",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_edaffcdae47da8": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f6ec3-fed0-7038-b022-cf2891cec803",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
