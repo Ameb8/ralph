@@ -1,0 +1,35 @@
+ralph.json
+  s_4d897781e6e5ac::t_8c71f1f283bea3 2-9
+  s_5ec5c84aab7660::t_97ee3906c56f4b 1
+README.md
+  s_4d897781e6e5ac::t_7ee4059d4f48dc 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "e34fb8c85c2e446df67590fe2e96383f8866664f",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_4d897781e6e5ac": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f8db8-dfde-7441-b30b-9ca4b1a9cd7a",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_5ec5c84aab7660": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f716b-b70f-771b-8acb-4f025ab722bd",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
