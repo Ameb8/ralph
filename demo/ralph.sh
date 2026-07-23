@@ -18,14 +18,18 @@
 #   MAX_RETRIES              retry count for the solve step (default: 1)
 #   COMMIT_MAX_RETRIES       retry count for the commit step (default: 1)
 #   SIGNAL_DIR               where .done/.escalate signals + logs go (default: .ralph)
-#   SOLVE_MODEL              codex --model for the issue-solving step
-#   SOLVE_REASONING_EFFORT   codex --reasoning-effort for the issue-solving step
-#   COMMIT_MODEL             codex --model for the commit step
-#   COMMIT_REASONING_EFFORT  codex --reasoning-effort for the commit step
+#   SOLVE_MODEL              -m/--model for the issue-solving step
+#   SOLVE_REASONING_EFFORT   reasoning effort for the solving step (low/medium/high),
+#                            passed via -c model_reasoning_effort=<value>
+#   COMMIT_MODEL             -m/--model for the commit step
+#   COMMIT_REASONING_EFFORT  reasoning effort for the commit step, same mechanism
+#   CODEX_SANDBOX            -s/--sandbox mode for both steps, e.g. workspace-write
+#                            (unset = whatever ~/.codex/config.toml already specifies)
 #
-# Example: cheap/fast model for commits, stronger model for solving:
+# Example: cheap/fast model for commits, stronger model + reasoning for solving:
 #   SOLVE_MODEL=o3 SOLVE_REASONING_EFFORT=high \
 #   COMMIT_MODEL=o4-mini COMMIT_REASONING_EFFORT=low \
+#   CODEX_SANDBOX=workspace-write \
 #   ./ralph.sh prompt.md 101 102 103
 
 set -euo pipefail
@@ -34,6 +38,7 @@ REPO="${REPO:-}"          # optional: owner/repo, defaults to gh's repo-in-cwd d
 MAX_RETRIES="${MAX_RETRIES:-1}"
 SIGNAL_DIR="${SIGNAL_DIR:-.ralph}"
 COMMIT_MAX_RETRIES="${COMMIT_MAX_RETRIES:-1}"
+CODEX_SANDBOX="${CODEX_SANDBOX:-}"
 
 # Model/reasoning config, configurable independently per step.
 # Leave a var empty/unset to fall back to codex's own defaults.
@@ -42,15 +47,22 @@ SOLVE_REASONING_EFFORT="${SOLVE_REASONING_EFFORT:-}"
 COMMIT_MODEL="${COMMIT_MODEL:-}"
 COMMIT_REASONING_EFFORT="${COMMIT_REASONING_EFFORT:-}"
 
-# Build codex CLI flag arrays from the above. Adjust flag names here if
-# your installed codex CLI uses different ones.
-solve_codex_flags=()
-[[ -n "$SOLVE_MODEL" ]] && solve_codex_flags+=(--model "$SOLVE_MODEL")
-[[ -n "$SOLVE_REASONING_EFFORT" ]] && solve_codex_flags+=(--reasoning-effort "$SOLVE_REASONING_EFFORT")
+# Build codex CLI flag arrays from the above.
+# NOTE: `codex exec --help` (checked against the installed version) has
+# no --reasoning-effort flag — reasoning effort is set via the -c config
+# override (model_reasoning_effort), not a dedicated flag. -m/--model is
+# a real flag. -s/--sandbox is also a real flag, applied to both steps
+# via CODEX_SANDBOX if set.
+sandbox_flags=()
+[[ -n "$CODEX_SANDBOX" ]] && sandbox_flags+=(-s "$CODEX_SANDBOX")
 
-commit_codex_flags=()
-[[ -n "$COMMIT_MODEL" ]] && commit_codex_flags+=(--model "$COMMIT_MODEL")
-[[ -n "$COMMIT_REASONING_EFFORT" ]] && commit_codex_flags+=(--reasoning-effort "$COMMIT_REASONING_EFFORT")
+solve_codex_flags=("${sandbox_flags[@]}")
+[[ -n "$SOLVE_MODEL" ]] && solve_codex_flags+=(-m "$SOLVE_MODEL")
+[[ -n "$SOLVE_REASONING_EFFORT" ]] && solve_codex_flags+=(-c "model_reasoning_effort=\"${SOLVE_REASONING_EFFORT}\"")
+
+commit_codex_flags=("${sandbox_flags[@]}")
+[[ -n "$COMMIT_MODEL" ]] && commit_codex_flags+=(-m "$COMMIT_MODEL")
+[[ -n "$COMMIT_REASONING_EFFORT" ]] && commit_codex_flags+=(-c "model_reasoning_effort=\"${COMMIT_REASONING_EFFORT}\"")
 
 # Fixed prompt for the dedicated commit step. Kept separate from the
 # solve-issue prompt template on purpose — this call only ever sees the
