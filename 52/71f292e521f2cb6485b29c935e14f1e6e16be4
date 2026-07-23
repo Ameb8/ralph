@@ -1,0 +1,28 @@
+demo/ralph.sh
+  s_3528fadcd039e3::t_dfbcd65cec077a 42-51,57
+  s_3528fadcd039e3::t_4f5c2ba272c2ef 26,33,74
+  s_3528fadcd039e3::t_f00b37e9ee84a8 27-28,52,75,112-118,123,125-131,137-139,233
+  s_3528fadcd039e3::t_3759a117f45225 54-56,58-60
+  s_3528fadcd039e3::t_6cf6bba7e6f5e8 150-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "5271f292e521f2cb6485b29c935e14f1e6e16be4",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_3528fadcd039e3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9031-1739-76c0-a9d2-29dd6f746e04",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
