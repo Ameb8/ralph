@@ -1,0 +1,34 @@
+README.md
+  s_3528fadcd039e3::t_f00b37e9ee84a8 33-34,68-76,78-81,83-84,97,99
+  s_3528fadcd039e3::t_dfbcd65cec077a 77,82,100
+  s_19c1a4bb45a3f6::t_16f840d36628b3 25-32,35-67,85-96,98,101-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "17fb89666d8bccff67738a8b06f31dba0c78dfbd",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_19c1a4bb45a3f6": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f9028-a67b-7655-a48e-be1da80fc09e",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_3528fadcd039e3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9031-1739-76c0-a9d2-29dd6f746e04",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
