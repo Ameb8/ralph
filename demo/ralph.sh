@@ -23,13 +23,14 @@
 #                            passed via -c model_reasoning_effort=<value>
 #   COMMIT_MODEL             -m/--model for the commit step
 #   COMMIT_REASONING_EFFORT  reasoning effort for the commit step, same mechanism
-#   CODEX_SANDBOX            -s/--sandbox mode for both steps, e.g. workspace-write
-#                            (unset = whatever ~/.codex/config.toml already specifies)
+#   RALPH_CODEX_SANDBOX      -s/--sandbox mode for both steps (default: workspace-write)
+#                            This confines Codex-initiated writes to the directory where this
+#                            script starts. Do not use danger-full-access for this loop.
 #
 # Example: cheap/fast model for commits, stronger model + reasoning for solving:
 #   SOLVE_MODEL=o3 SOLVE_REASONING_EFFORT=high \
 #   COMMIT_MODEL=o4-mini COMMIT_REASONING_EFFORT=low \
-#   CODEX_SANDBOX=workspace-write \
+#   RALPH_CODEX_SANDBOX=workspace-write \
 #   ./ralph.sh prompt.md 101 102 103
 
 set -euo pipefail
@@ -38,7 +39,25 @@ REPO="${REPO:-}"          # optional: owner/repo, defaults to gh's repo-in-cwd d
 MAX_RETRIES="${MAX_RETRIES:-1}"
 SIGNAL_DIR="${SIGNAL_DIR:-.ralph}"
 COMMIT_MAX_RETRIES="${COMMIT_MAX_RETRIES:-1}"
-CODEX_SANDBOX="${CODEX_SANDBOX:-}"
+# Codex itself may export an internal CODEX_SANDBOX value (for example,
+# "seatbelt"). Only honor safe values intended for this script; otherwise use
+# the repository-bounded default. RALPH_CODEX_SANDBOX takes precedence.
+if [[ -n "${RALPH_CODEX_SANDBOX:-}" ]]; then
+  CODEX_SANDBOX="$RALPH_CODEX_SANDBOX"
+elif [[ "${CODEX_SANDBOX:-}" == "read-only" || "${CODEX_SANDBOX:-}" == "workspace-write" ]]; then
+  CODEX_SANDBOX="$CODEX_SANDBOX"
+else
+  CODEX_SANDBOX="workspace-write"
+fi
+RUN_ROOT="$(pwd -P)"
+
+case "$CODEX_SANDBOX" in
+  read-only|workspace-write) ;;
+  *)
+    echo "Invalid RALPH_CODEX_SANDBOX: $CODEX_SANDBOX (use read-only or workspace-write)" >&2
+    exit 1
+    ;;
+esac
 
 # Model/reasoning config, configurable independently per step.
 # Leave a var empty/unset to fall back to codex's own defaults.
@@ -52,9 +71,8 @@ COMMIT_REASONING_EFFORT="${COMMIT_REASONING_EFFORT:-}"
 # no --reasoning-effort flag — reasoning effort is set via the -c config
 # override (model_reasoning_effort), not a dedicated flag. -m/--model is
 # a real flag. -s/--sandbox is also a real flag, applied to both steps
-# via CODEX_SANDBOX if set.
-sandbox_flags=()
-[[ -n "$CODEX_SANDBOX" ]] && sandbox_flags+=(-s "$CODEX_SANDBOX")
+# via RALPH_CODEX_SANDBOX if set.
+sandbox_flags=(-C "$RUN_ROOT" -s "$CODEX_SANDBOX")
 
 solve_codex_flags=("${sandbox_flags[@]}")
 [[ -n "$SOLVE_MODEL" ]] && solve_codex_flags+=(-m "$SOLVE_MODEL")
@@ -91,24 +109,37 @@ usage() {
 
 [[ $# -ge 2 ]] || usage
 
+for required_command in gh codex jq; do
+  command -v "$required_command" >/dev/null 2>&1 || {
+    echo "Required command not found on PATH: $required_command" >&2
+    exit 1
+  }
+done
+
 PROMPT_FILE="$1"; shift
 [[ -f "$PROMPT_FILE" ]] || { echo "Prompt file not found: $PROMPT_FILE" >&2; exit 1; }
 
 if [[ "$1" == "--issues-file" ]]; then
+  [[ $# -eq 2 ]] || usage
   ISSUES_FILE="$2"
-  [[ -f "$ISSUES_FILE" ]] || { echo "Issues file not found: $ISSUES_FILE" >&2; exit 1; }
-  mapfile -t ISSUES < <(grep -Eo '[0-9]+' "$ISSUES_FILE")
+  [[ -r "$ISSUES_FILE" ]] || { echo "Issues file is not readable: $ISSUES_FILE" >&2; exit 1; }
+
+  # macOS ships Bash 3.2, which does not have `mapfile`.
+  ISSUES=()
+  while IFS= read -r issue; do
+    [[ -n "$issue" ]] && ISSUES+=("$issue")
+  done < <(grep -Eo '[0-9]+' "$ISSUES_FILE" || true)
 else
   ISSUES=("$@")
 fi
 
 [[ ${#ISSUES[@]} -gt 0 ]] || { echo "No issue numbers provided." >&2; exit 1; }
+for issue in "${ISSUES[@]}"; do
+  [[ "$issue" =~ ^[0-9]+$ ]] || { echo "Invalid issue number: $issue" >&2; exit 1; }
+done
 
 mkdir -p "$SIGNAL_DIR"
 PROMPT_TEMPLATE="$(cat "$PROMPT_FILE")"
-
-gh_repo_flag=()
-[[ -n "$REPO" ]] && gh_repo_flag=(--repo "$REPO")
 
 for issue in "${ISSUES[@]}"; do
   echo "=============================================="
@@ -116,7 +147,11 @@ for issue in "${ISSUES[@]}"; do
   echo "=============================================="
 
   # Pull title + body so the model has real content, not just a number.
-  issue_json="$(gh issue view "$issue" "${gh_repo_flag[@]}" --json title,body,url)"
+  if [[ -n "$REPO" ]]; then
+    issue_json="$(gh issue view "$issue" --repo "$REPO" --json title,body,url)"
+  else
+    issue_json="$(gh issue view "$issue" --json title,body,url)"
+  fi
   issue_title="$(jq -r '.title' <<<"$issue_json")"
   issue_body="$(jq -r '.body' <<<"$issue_json")"
   issue_url="$(jq -r '.url' <<<"$issue_json")"
