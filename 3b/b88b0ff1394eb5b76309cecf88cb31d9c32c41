@@ -1,0 +1,46 @@
+internal/cli/root.go
+  s_5ec5c84aab7660::t_25e205ff72927e 1-3,5-8,19-20,25
+  s_4d897781e6e5ac::t_c642fe9ac26720 16
+  s_4d897781e6e5ac::t_8b8566c2cd5cb3 4,9-15,17-18,21-24
+internal/cli/run.go
+  s_4d897781e6e5ac::t_ccb9ef5981e17d 5-6,10-23,25-29
+  s_5ec5c84aab7660::t_7ef43eb9f22e22 1-4,7-9,24,30
+internal/cli/validate.go
+  s_5ec5c84aab7660::t_b2ae3f1ed4919d 1-7,16
+  s_4d897781e6e5ac::t_ec1e5ffd9f9575 8-15
+cmd/ralph/main.go
+  s_4d897781e6e5ac::t_290dd36b8b59d1 3-9,12-18
+  s_5ec5c84aab7660::t_0c4031d8dbad81 1-2,10-11,19
+go.mod
+  s_5ec5c84aab7660::t_1eb5601d9b5605 4-10
+  s_5ec5c84aab7660::t_b6bb13d863df8e 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "3bb88b0ff1394eb5b76309cecf88cb31d9c32c41",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_4d897781e6e5ac": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f8db8-dfde-7441-b30b-9ca4b1a9cd7a",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_5ec5c84aab7660": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f716b-b70f-771b-8acb-4f025ab722bd",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
