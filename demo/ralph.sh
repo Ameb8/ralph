@@ -26,6 +26,7 @@
 #   RALPH_CODEX_SANDBOX      -s/--sandbox mode for both steps (default: workspace-write)
 #                            This confines Codex-initiated writes to the directory where this
 #                            script starts. Do not use danger-full-access for this loop.
+#   RALPH_SHOW_TRACE         stream Codex's full tool trace to the terminal too (default: 0)
 #
 # Example: cheap/fast model for commits, stronger model + reasoning for solving:
 #   SOLVE_MODEL=o3 SOLVE_REASONING_EFFORT=high \
@@ -65,6 +66,7 @@ SOLVE_MODEL="${SOLVE_MODEL:-}"
 SOLVE_REASONING_EFFORT="${SOLVE_REASONING_EFFORT:-}"
 COMMIT_MODEL="${COMMIT_MODEL:-}"
 COMMIT_REASONING_EFFORT="${COMMIT_REASONING_EFFORT:-}"
+RALPH_SHOW_TRACE="${RALPH_SHOW_TRACE:-0}"
 
 # Build codex CLI flag arrays from the above.
 # NOTE: `codex exec --help` (checked against the installed version) has
@@ -87,18 +89,46 @@ commit_codex_flags=("${sandbox_flags[@]}")
 # diff, never the issue body, so it can't get distracted into "fixing"
 # anything else. Swap this out for your commit-plan skill later.
 read -r -d '' COMMIT_PROMPT_TEMPLATE <<'EOF' || true
-You are only responsible for committing the current working tree changes.
+# Task
+
+You are responsible for committing the current working tree changes.
 Do not modify any files. Do not make further code changes.
 
 1. Run `git add -A`.
 2. Write a clear, conventional commit message summarizing the actual
    diff (not the issue description) — what changed and why, in the
    imperative mood (e.g. "Fix null check in parser").
-3. Reference "Issue #{{ISSUE_NUM}}" in the commit message footer.
 4. Commit with that message.
 
 If there is nothing staged to commit, say so explicitly and exit
 without creating an empty commit.
+
+## Commit Format
+
+Use Conventional Commit headers. Choose one allowed type: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, or `revert`.
+ 
+Choose a consistent lowercase scope based on the affected service or repository domain. Examples include `android`, `api`, `web`, `user-service`, `android/auth`, `api/config`, and `db/migrations`. Nested scopes are allowed when they identify a meaningful subsystem within a broader area. Omit the scope only when the change is repo-wide or no meaningful scope applies. Use an agent-focused documentation scope such as `docs/agent` for `AGENTS.md` changes.
+ 
+Write a commit body of 1–6 sentences. Use imperative, present-tense sentences and standard sentence-case capitalization with ending punctuation. Use newlines only to separate the header, paragraphs, and footer; do not hard-wrap ordinary body text.
+ 
+End every commit message with this exact footer, after one blank line:
+ 
+`Co-Authored-By: OpenAI GPT-5.6-Terra <noreply@openai.com>`
+ 
+### Header
+ 
+- Use Conventional Commit format: `type(scope): description`.
+- Make the header entirely lowercase, except for acronyms or proper nouns that must remain capitalized inside the scope.
+- Keep the header free of a final period.
+- Write the description in imperative, present tense, as a command to the codebase: use `add support`, `fix parsing`, or `update docs`, not `added support`, `fixes parsing`, or `updated docs`.
+- For a breaking change, append `!` directly after the closing scope parenthesis, as in `feat(api/config)!: drop support for v1 endpoints`.
+
+### Body
+ 
+- Write 1–6 sentences based on the commit's complexity.
+- Use imperative, present-tense sentences and standard sentence-case capitalization with ending punctuation.
+- Do not use Markdown bullets or lists. If multiple distinct points need separate treatment, use at most two paragraphs separated by one blank line.
+- For a breaking change, start the body with `BREAKING CHANGE:` followed by a clear description of what breaks and how consumers should adapt.
 EOF
 
 usage() {
@@ -182,9 +212,24 @@ ${issue_block}"
   while [[ $attempt -le $MAX_RETRIES ]]; do
     echo "--- attempt ${attempt}/${MAX_RETRIES} for issue #${issue} ---"
 
-    # codex prints its own output; tee lets us keep a per-issue log too
-    # while still showing everything live in stdout.
-    if codex exec "${solve_codex_flags[@]}" "$final_prompt" 2>&1 | tee "${SIGNAL_DIR}/issue-${issue}.log"; then
+    solve_log="${SIGNAL_DIR}/issue-${issue}.attempt-${attempt}.log"
+    solve_summary="${SIGNAL_DIR}/issue-${issue}.attempt-${attempt}.summary.md"
+    if [[ "$RALPH_SHOW_TRACE" == "1" ]]; then
+      if codex exec "${solve_codex_flags[@]}" -o "$solve_summary" "$final_prompt" 2>&1 | tee "$solve_log"; then
+        solve_exit=0
+      else
+        solve_exit=$?
+      fi
+    else
+      if codex exec "${solve_codex_flags[@]}" -o "$solve_summary" "$final_prompt" >"$solve_log" 2>&1; then
+        solve_exit=0
+      else
+        solve_exit=$?
+      fi
+    fi
+    if [[ $solve_exit -eq 0 ]]; then
+      echo "--- Codex summary for issue #${issue} ---"
+      sed -n '1,160p' "$solve_summary" 2>/dev/null || true
       success=1
       break
     fi
@@ -213,7 +258,24 @@ ${issue_block}"
   while [[ $commit_attempt -le $COMMIT_MAX_RETRIES ]]; do
     echo "--- commit attempt ${commit_attempt}/${COMMIT_MAX_RETRIES} for issue #${issue} ---"
 
-    if codex exec "${commit_codex_flags[@]}" "$commit_prompt" 2>&1 | tee "${SIGNAL_DIR}/issue-${issue}.commit.log"; then
+    commit_log="${SIGNAL_DIR}/issue-${issue}.commit.attempt-${commit_attempt}.log"
+    commit_summary="${SIGNAL_DIR}/issue-${issue}.commit.attempt-${commit_attempt}.summary.md"
+    if [[ "$RALPH_SHOW_TRACE" == "1" ]]; then
+      if codex exec "${commit_codex_flags[@]}" -o "$commit_summary" "$commit_prompt" 2>&1 | tee "$commit_log"; then
+        commit_exit=0
+      else
+        commit_exit=$?
+      fi
+    else
+      if codex exec "${commit_codex_flags[@]}" -o "$commit_summary" "$commit_prompt" >"$commit_log" 2>&1; then
+        commit_exit=0
+      else
+        commit_exit=$?
+      fi
+    fi
+    if [[ $commit_exit -eq 0 ]]; then
+      echo "--- Commit summary for issue #${issue} ---"
+      sed -n '1,80p' "$commit_summary" 2>/dev/null || true
       commit_success=1
       break
     fi
