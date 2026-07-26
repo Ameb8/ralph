@@ -25,7 +25,7 @@ Run the unified PR pipeline by passing one or more issue numbers:
 
 ## Demo Script (`ralph.sh`)
 
-The repository includes a bash demo script (`demo/ralph.sh`) that automates solving a list of GitHub issues one-by-one using the Codex CLI, following a solve-then-commit pipeline.
+The repository includes a bash demo script (`demo/ralph.sh`) that automates solving a list of GitHub issues one-by-one using the Codex CLI, following a solve-then-commit pipeline. The Codex commit step prepares a message but does not modify `.git`; the host script then stages and commits the changes outside the Codex sandbox.
 
 ### Prerequisites
 - `gh` (GitHub CLI), authenticated and on your `PATH`.
@@ -80,7 +80,9 @@ RALPH_CODEX_SANDBOX=workspace-write ralph prompt.md --issues-file issues.txt
 Do not use `--dangerously-bypass-approvals-and-sandbox`, `danger-full-access`,
 or the older informal term `--yolo` for this loop: those remove the repository
 boundary. `RALPH_CODEX_SANDBOX=read-only` is available for inspection-only runs, but
-the solve and commit steps will then be unable to modify or commit files.
+the solve step will then be unable to modify files. The commit-message step
+can still inspect the diff, but it cannot produce a message if there are no
+changes. The host script performs the final `git add` and `git commit`.
 
 **Prompt Template Guidelines:**
 The `<prompt.md>` file serves as the base instructions for solving the issue. If you include the token `{{ISSUE}}` anywhere in the file, it will be replaced with the fetched GitHub issue title, body, and URL. If the `{{ISSUE}}` token is missing, the script will automatically append the issue contents to the end of the prompt.

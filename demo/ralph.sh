@@ -84,24 +84,29 @@ commit_codex_flags=("${sandbox_flags[@]}")
 [[ -n "$COMMIT_MODEL" ]] && commit_codex_flags+=(-m "$COMMIT_MODEL")
 [[ -n "$COMMIT_REASONING_EFFORT" ]] && commit_codex_flags+=(-c "model_reasoning_effort=\"${COMMIT_REASONING_EFFORT}\"")
 
-# Fixed prompt for the dedicated commit step. Kept separate from the
-# solve-issue prompt template on purpose — this call only ever sees the
-# diff, never the issue body, so it can't get distracted into "fixing"
-# anything else. Swap this out for your commit-plan skill later.
+# Fixed prompt for the dedicated commit-message step. Kept separate from the
+# solve-issue prompt template on purpose — this call only ever sees the diff,
+# never the issue body, so it can't get distracted into "fixing" anything else.
 read -r -d '' COMMIT_PROMPT_TEMPLATE <<'EOF' || true
 # Task
 
-You are responsible for committing the current working tree changes.
-Do not modify any files. Do not make further code changes.
+You are responsible for preparing a commit message for the current working
+tree changes. Do not modify files, stage files, or create a commit.
 
-1. Run `git add -A`.
+1. Inspect the actual diff with `git diff` and `git status`.
 2. Write a clear, conventional commit message summarizing the actual
    diff (not the issue description) — what changed and why, in the
    imperative mood (e.g. "Fix null check in parser").
-4. Commit with that message.
 
-If there is nothing staged to commit, say so explicitly and exit
-without creating an empty commit.
+If there are no working tree changes, leave the marker body empty and do not
+invent a commit message.
+
+Your final response must contain exactly one message between these markers,
+with no Markdown fences and no commentary inside the markers:
+
+BEGIN_COMMIT_MESSAGE
+<complete commit message>
+END_COMMIT_MESSAGE
 
 ## Commit Format
 
@@ -243,15 +248,17 @@ ${issue_block}"
     continue
   fi
 
-  # --- Separate, dedicated commit step ---------------------------------
-  # Runs as its own codex process so committing isn't left riding on
-  # whatever the solve step happened to remember to do. This step only
-  # ever sees the diff, not the issue text.
+  # --- Separate, dedicated commit-message step --------------------------
+  # Runs as its own Codex process so message generation isn't left riding on
+  # whatever the solve step happened to remember to do. The host shell below
+  # performs the actual Git operations after Codex exits.
   commit_prompt="${COMMIT_PROMPT_TEMPLATE//\{\{ISSUE_NUM\}\}/$issue}"
 
+  commit_message_done_signal="${SIGNAL_DIR}/issue-${issue}.commit-message.done"
   commit_done_signal="${SIGNAL_DIR}/issue-${issue}.commit.done"
   commit_escalate_signal="${SIGNAL_DIR}/issue-${issue}.commit.escalate"
-  rm -f "$commit_done_signal" "$commit_escalate_signal"
+  commit_message_file="${SIGNAL_DIR}/issue-${issue}.commit-message.txt"
+  rm -f "$commit_message_done_signal" "$commit_done_signal" "$commit_escalate_signal" "$commit_message_file"
 
   commit_attempt=1
   commit_success=0
@@ -274,18 +281,43 @@ ${issue_block}"
       fi
     fi
     if [[ $commit_exit -eq 0 ]]; then
-      echo "--- Commit summary for issue #${issue} ---"
-      sed -n '1,80p' "$commit_summary" 2>/dev/null || true
-      commit_success=1
-      break
+      if commit_message="$(awk '
+        /BEGIN_COMMIT_MESSAGE/ { in_message=1; next }
+        /END_COMMIT_MESSAGE/ { found=1; in_message=0; next }
+        in_message { print }
+        END { if (!found) exit 1 }
+      ' "$commit_summary")" && [[ -n "$commit_message" ]]; then
+        printf '%s\n' "$commit_message" >"$commit_message_file"
+        echo "--- Commit message for issue #${issue} ---"
+        sed -n '1,80p' "$commit_message_file"
+        commit_success=1
+        break
+      fi
+      echo "Commit step did not produce a valid marked commit message." >&2
     fi
 
     commit_attempt=$((commit_attempt + 1))
   done
 
   if [[ $commit_success -eq 1 ]]; then
-    touch "$done_signal" "$commit_done_signal"
-    echo "Issue #${issue}: done (solved + committed)"
+    touch "$commit_message_done_signal"
+    echo "--- Host commit for issue #${issue} ---"
+    if ! git add -A; then
+      echo "Issue #${issue}: solved but host git add failed" >&2
+      touch "$commit_escalate_signal"
+      continue
+    fi
+
+    if git diff --cached --quiet; then
+      touch "$done_signal" "$commit_done_signal"
+      echo "Issue #${issue}: solved; no changes to commit"
+    elif git commit -F "$commit_message_file"; then
+      touch "$done_signal" "$commit_done_signal"
+      echo "Issue #${issue}: done (solved + committed)"
+    else
+      echo "Issue #${issue}: solved but host git commit failed" >&2
+      touch "$commit_escalate_signal"
+    fi
   else
     touch "$commit_escalate_signal"
     echo "Issue #${issue}: solved but commit escalated after ${COMMIT_MAX_RETRIES} attempt(s)" >&2
