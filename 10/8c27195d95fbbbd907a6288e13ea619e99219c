@@ -1,0 +1,31 @@
+demo/ralph.sh
+  s_73b0b6fc7f9888::t_f3cc646cb86287 251-254
+  s_73b0b6fc7f9888::t_3d951ce72689a2 101-102
+  s_73b0b6fc7f9888::t_5d5cb3b007e13c 289
+  s_73b0b6fc7f9888::t_8dd1809d0292bc 87-89,93-94,96,104-109,257,260,284-288,290-296,303
+  s_73b0b6fc7f9888::t_33e21087432c94 261,304-320
+README.md
+  s_73b0b6fc7f9888::t_84b6a1c221b462 83-84
+  s_73b0b6fc7f9888::t_33e21087432c94 28,85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "108c27195d95fbbbd907a6288e13ea619e99219c",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_73b0b6fc7f9888": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9b01-db7b-7731-af8d-c8dbe42a2f0d",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
