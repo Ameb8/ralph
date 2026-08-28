@@ -1,0 +1,25 @@
+README.md
+  s_6251cb2258a8b6::t_45b392e624668b 99-100
+  s_6251cb2258a8b6::t_76681a54ab29aa 87-98,101-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "c0ac0490410604f13d16f1148995587f5fec2608",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_6251cb2258a8b6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a046a0-8c07-7373-8761-71b5b85cbfd3",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
