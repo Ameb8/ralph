@@ -84,6 +84,23 @@ the solve step will then be unable to modify files. The commit-message step
 can still inspect the diff, but it cannot produce a message if there are no
 changes. The host script performs the final `git add` and `git commit`.
 
+### Pi variant
+
+`demo/ralph-pi.sh` provides the same solve-then-commit loop using the
+[Pi coding agent](https://pi.dev/). It requires `pi` instead of `codex` and
+uses `SOLVE_THINKING` / `COMMIT_THINKING` for reasoning configuration.
+
+```bash
+chmod +x demo/ralph-pi.sh
+./demo/ralph-pi.sh prompt.md --issues-file issues.txt
+```
+
+Pi has no equivalent to Codex's repository-bounded filesystem sandbox.
+`RALPH_PI_SANDBOX=read-only` limits Pi to its read-only tools and completes
+each issue as a review-only pass without attempting a commit. The default
+`workspace-write` mode enables Pi's normal write-capable tools and must be
+treated as trusted access to the machine, not as a sandbox.
+
 **Prompt Template Guidelines:**
 The `<prompt.md>` file serves as the base instructions for solving the issue. If you include the token `{{ISSUE}}` anywhere in the file, it will be replaced with the fetched GitHub issue title, body, and URL. If the `{{ISSUE}}` token is missing, the script will automatically append the issue contents to the end of the prompt.
 
