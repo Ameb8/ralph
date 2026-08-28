@@ -1,0 +1,44 @@
+demo/ralph-pi.sh
+  s_e91075ccaef353::t_f4983d5a728764 140
+  s_e91075ccaef353::t_add31b198a301b 14,34,48-51,88
+  s_e91075ccaef353::t_eb597452c73791 97,104
+  s_e91075ccaef353::t_ca7fab238dbcfb 242-255
+  s_6251cb2258a8b6::t_45b392e624668b 270-278
+  s_e91075ccaef353::t_8205b93a53b4bc 21,24-25,35
+  s_e91075ccaef353::t_cf34af83b9dfbc 299-305
+  s_e91075ccaef353::t_40759b7b1048cc 59-61
+  s_e91075ccaef353::t_ad0d6ca5c66ea4 57,166,280-282
+  s_e91075ccaef353::t_6733a52bd1fc5b 3-7
+  s_6251cb2258a8b6::t_76681a54ab29aa 22-23,26-33,43-46,63-86,89-91
+  s_6251cb2258a8b6::t_bd1dcc0609b5f9 92,94,99-102
+  s_e91075ccaef353::t_db93d3825c0ab3 93,95-96,103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "2250bd4255289cc8cd2812b5964e1e0ff0bf6230",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_6251cb2258a8b6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a046a0-8c07-7373-8761-71b5b85cbfd3",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_e91075ccaef353": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0469c-58ea-72d9-84ea-c986e39cea2d",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
