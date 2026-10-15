@@ -41,9 +41,9 @@ The V0.1.0 execution follows a strict pipeline divided into three distinct phase
 4. **Issue Iteration:** For *each* issue in the provided list:
    - Host queries GitHub for the issue body and extracts its referenced `docs/specs/*.md` files.
    - Host builds a prompt combining:
-     - `AGENTS.md`
      - The current `.ralph-handoff.md` (what previous sessions did)
      - The specific Issue body and its Specs
+     *(Note: `AGENTS.md` is deliberately NOT embedded in the prompt. We assume the operator uses modern coding agents that automatically read repo-level instruction files like `AGENTS.md` or `CLAUDE.md`, avoiding token duplication).*
    - Host spawns a **fresh agent session**.
    - Agent implements the issue, commits chunks, and appends a summary of its work to `.ralph-handoff.md`.
    - Agent signals completion via `ralph.done`. Host terminates this session and moves to the next issue.
@@ -53,7 +53,7 @@ The V0.1.0 execution follows a strict pipeline divided into three distinct phase
 1. **Context Assembly:** After all issues are completed, the host builds a new prompt containing:
    - All target Issue bodies.
    - The final `.ralph-handoff.md` (the summary of all implemented work).
-   - `AGENTS.md` (specifically for the Draft-PR skill).
+   - Explicit instructions directing the agent to execute the repo's Draft-PR skill (defined in `AGENTS.md`).
 2. **PR Agent Session:** Host spawns a **fresh agent session** tasked *only* with drafting the PR.
 3. **Signal & Open:** Agent writes `.ralph/draft-pr.md`, pushes the branch, and writes `ralph.done`. The host reads the draft file and executes `gh pr create`.
 
@@ -110,9 +110,10 @@ Any agent invoked by the host must:
 
 1. **Accept the prompt** via the configured delivery mode (`arg`, `stdin`, or `file`).
 2. **Run autonomously** — no interactive prompts, no confirmation prompts.
-3. **Write `ralph.done`** at repo root when the task is complete (content: `success`).
-4. **Write `ralph.escalate`** at repo root if blocked (content: one-paragraph blocker description).
-5. **Exit 0** on success, non-zero on error (host treats non-zero as escalation).
+3. **Workspace instruction awareness:** Automatically read and adhere to repo-level instructions from `AGENTS.md` (or tool-specific formats like `CLAUDE.md` provided in the repository). The host will not embed these files into the prompt.
+4. **Write `ralph.done`** at repo root when the task is complete (content: `success`).
+5. **Write `ralph.escalate`** at repo root if blocked (content: one-paragraph blocker description).
+6. **Exit 0** on success, non-zero on error (host treats non-zero as escalation).
 
 The host does **not** parse agent stdout/stderr. Signal files are the only contract.
 
@@ -155,7 +156,7 @@ The host does **not** parse agent stdout/stderr. Signal files are the only contr
 
 ## 5. Skill Contracts
 
-In the Ralph system, "skills" are behavioral contracts written as natural-language instructions in `AGENTS.md`. The agent reads these to know *how* to execute tasks in the repository. 
+In the Ralph system, "skills" are behavioral contracts written as natural-language instructions in `AGENTS.md` (or tool-specific files such as `CLAUDE.md` provided in the repository). We assume the operator uses modern coding agents that automatically ingest repo-level instruction files; therefore, the host does not embed `AGENTS.md` into prompts. The agent reads these repository files directly to know *how* to execute tasks in the repository.
 
 For V0.1.0, the following skill contracts must be defined in `AGENTS.md` and adhered to by the agent across its isolated sessions.
 
@@ -193,7 +194,7 @@ To build this vertical slice efficiently, the implementation should be ordered a
 - *Test:* Run the script with dummy issues and ensure the host correctly queries GitHub, isolates specs, generates sequential prompts, and waits for `ralph.done` in each step.
 
 ### Phase 2: Dedicated PR Session
-- Write the Draft-PR skill instructions into `AGENTS.md`.
+- Write the Draft-PR skill instructions into `AGENTS.md` (and ensure appropriate agent config files/symlinks exist in the repo).
 - Implement the host logic to spawn the dedicated PR-drafting session once Phase 1 is complete.
 - Implement reading `.ralph/draft-pr.md` and calling `gh pr create`.
 - *Test:* Run an end-to-end flow where multiple issues are implemented, their summaries are handed off, and a cohesive PR is opened on GitHub.
@@ -235,7 +236,7 @@ The orchestrator uses typed Go errors to cleanly separate internal failures from
 - `ErrCIFailure`: The system exhausted all `max_retries` during Phase C (Graceful Exit 1 with failure output).
 
 ### 7.7 Prompt Assembly Engine
-Context and prompt assembly uses Go's **`text/template`** engine. Templates are maintained as distinct `.tmpl` files bundled into the binary via `//go:embed`. This decouples the prompt phrasing and layout from the Go orchestration code.
+Context and prompt assembly uses Go's **`text/template`** engine. Templates are maintained as distinct `.tmpl` files bundled into the binary via `//go:embed`. This decouples the prompt phrasing and layout from the Go orchestration code. Prompts assemble issue bodies, referenced specs, and handoff notes without inlining `AGENTS.md`, relying on the agent's native ability to read repository instructions directly.
 
 ### 7.8 CLI UX and Logging
 - **Agent Output Logging:** The host automatically captures the full stdout and stderr for every agent session (issue runs, PR drafting, CI fixes) and saves it to session-specific log files (e.g., `.ralph/runs/<run_id>/`). This provides structured output for post-mortem analysis.
