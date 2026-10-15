@@ -1,130 +1,227 @@
 # Ralph
 
-Ralph is an automated issue-driven development CLI tool.
+Ralph is an autonomous, issue-driven development CLI tool. Given a list of GitHub issues, Ralph orchestrates an AI coding agent through sequential, fresh-context sessions to implement code changes, open a unified Pull Request, and monitor and resolve any continuous integration (CI) failures.
 
-## Build
+### Key Highlights
 
-Compile the project using standard Go build commands:
+- **Sequential Fresh Contexts:** Prevents LLM context saturation and prompt degradation by running an isolated agent session for each issue, a dedicated session for drafting the PR, and separate retry sessions for CI fixes.
+- **Inter-Session Handoff:** Tracks architectural notes, changes, and decisions across agent sessions via a lightweight `.ralph-handoff.md` file.
+- **Unified Pull Requests:** Implements related issues together on a single branch (`ralph/unified-<issues>`) and automatically creates a cohesive GitHub PR describing all changes.
+- **Automated CI Recovery:** Watches GitHub Actions check runs; if checks fail, Ralph extracts failure logs and dispatches an agent session to diagnose and push a fix.
+
+---
+
+## Prerequisites
+
+Before using Ralph, ensure the following tools are installed and available on your `PATH`:
+
+- **Go 1.26+** (for building or running from source)
+- **Git CLI (`git`)**: Installed and configured.
+- **GitHub CLI (`gh`)**: Installed and authenticated (`gh auth status`). Ralph uses `gh` to read issues, open PRs, and monitor CI checks.
+- **Agent CLI**: [OpenAI Codex CLI](https://github.com/openai/codex) (`codex`) installed and authenticated on your machine.
+
+---
+
+## Installation & Building
+
+### Option 1: Install with `go install`
+
+Install the `ralph` binary directly into your `$GOPATH/bin` (or `$HOME/go/bin`):
 
 ```bash
+go install ./cmd/ralph
+```
+
+Ensure `$GOPATH/bin` (or `~/go/bin`) is included in your shell's `PATH`.
+
+### Option 2: Build from Source
+
+Clone the repository and compile the binary:
+
+```bash
+# Using Go directly
 go build -o bin/ralph ./cmd/ralph
+
+# Or using the Makefile
+make build
 ```
 
-## Run
-
-Run the unified PR pipeline by passing one or more issue numbers:
+This generates the binary at `bin/ralph`. You can optionally move it to a system-wide directory:
 
 ```bash
-./bin/ralph run <issue_1> [<issue_2> ...]
+sudo cp bin/ralph /usr/local/bin/ralph
 ```
 
-**Example:**
-```bash
-./bin/ralph run 42 45
+---
+
+## Configuration (`ralph.json`)
+
+Ralph is configured via a `ralph.json` file located at the repository root, or specified with the `--config` flag.
+
+### Example `ralph.json`
+
+```json
+{
+  "agent": {
+    "type": "codex",
+    "codex": {
+      "command": "codex",
+      "model": "",
+      "reasoning_effort": "",
+      "sandbox": "workspace-write",
+      "extra_args": []
+    },
+    "env": {}
+  },
+  "max_retries": 3
+}
 ```
 
-## Demo Script (`ralph.sh`)
+### Configuration Settings
 
-The repository includes a bash demo script (`demo/ralph.sh`) that automates solving a list of GitHub issues one-by-one using the Codex CLI, following a solve-then-commit pipeline. The Codex commit step prepares a message but does not modify `.git`; the host script then stages and commits the changes outside the Codex sandbox.
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| `agent.type` | string | `"codex"` | AI agent backend to use (`codex`). |
+| `agent.codex.command` | string | `"codex"` | Path or command name for the Codex CLI binary. |
+| `agent.codex.model` | string | `""` | Optional model override (passed via `-m <model>`, e.g. `o3`). Uses Codex CLI defaults if empty. |
+| `agent.codex.reasoning_effort` | string | `""` | Optional reasoning effort (passed via `-c model_reasoning_effort="<effort>"`: e.g. `low`, `medium`, `high`). |
+| `agent.codex.sandbox` | string | `"workspace-write"` | Sandbox mode passed via `-s <sandbox_mode>` (`workspace-write`, `read-only`, `danger-full-access`). |
+| `agent.codex.extra_args` | string array | `[]` | Additional CLI flags appended directly to `codex exec`. |
+| `agent.env` | object | `{}` | Additional environment variables injected into the agent process. |
+| `max_retries` | integer | `3` | Maximum number of CI fix attempts in Phase C before exiting with a failure. |
 
-### Prerequisites
-- `gh` (GitHub CLI), authenticated and on your `PATH`.
-- `codex` CLI installed and on your `PATH`.
-- `jq` installed and on your `PATH`.
-- Bash 3.2 or later (including the Bash version bundled with macOS).
+---
 
-### Installation
+## Repository Setup (`AGENTS.md`)
 
-To invoke the script from any directory, you can copy it to a directory on your system's `PATH`.
+Ralph relies on repository-level instructions defined in `AGENTS.md` (or `CLAUDE.md`). Modern coding agents ingest repository instructions natively, keeping prompt tokens efficient.
 
-**For Linux and macOS (System-wide using sudo):**
+Ensure your repository contains an `AGENTS.md` file at its root defining the agent skill contracts:
+
+1. **Implementation Phase (Phase A):** Committing in logical chunks (`<type>(<scope>): <desc> (#<issue>)`), running test suites before concluding, appending notes to `.ralph-handoff.md`, and signaling completion via `ralph.done` (or `ralph.escalate` if blocked).
+2. **Draft-PR Skill (Phase B):** Writing a unified PR description to `.ralph/draft-pr.md`, linking issues (`Closes #<issue>`), pushing the branch to the remote (`git push -u origin HEAD`), and signaling `ralph.done`.
+3. **CI Fix Skill (Phase C):** Analyzing failure logs, diagnosing issues, verifying local test passes, committing and pushing fixes, and signaling `ralph.done`.
+
+---
+
+## Usage
+
+### 1. Pre-flight Validation
+
+Before running a batch of issues, verify your environment, configuration, and dependencies:
+
 ```bash
-chmod +x demo/ralph.sh
-sudo cp demo/ralph.sh /usr/local/bin/ralph
+ralph validate
 ```
 
-**For Linux and macOS (User-local without sudo):**
+This performs automated pre-flight checks:
+- Verifies `AGENTS.md` is present and non-empty at the repository root.
+- Validates the syntax and values in `ralph.json`.
+- Confirms the `git` CLI is available in `PATH`.
+- Confirms the `gh` CLI is available in `PATH`.
+- Confirms the configured agent CLI (`codex`) is available in `PATH`.
+- Verifies no active `.ralph-lock` file exists from another running instance.
+
+**Helpful flags:**
+- `--quiet`: Print only failure messages.
+- `--json`: Output check results in structured JSON format.
+
 ```bash
-chmod +x demo/ralph.sh
-mkdir -p ~/.local/bin
-cp demo/ralph.sh ~/.local/bin/ralph
-```
-*(If using the user-local method, ensure `~/.local/bin` is added to your `PATH` in your `~/.bashrc`, `~/.zshrc`, or equivalent config file).*
-
-### Usage
-
-The script requires a prompt template file and the issue numbers you want to solve.
-
-**Running with issue numbers:**
-```bash
-ralph <prompt.md> <issue-number> [issue-number ...]
-```
-
-**Running with an issues file:**
-```bash
-ralph <prompt.md> --issues-file issues.txt
+ralph validate --quiet
+ralph validate --json
 ```
 
-### Run Codex within the repository only
+### 2. Running the Unified Issue Pipeline
 
-Run `ralph` from the root of the Git repository it should modify. By default,
-the script invokes every Codex step with `-C "$(pwd -P)"` and
-`-s workspace-write`. `workspace-write` permits writes in that repository
-root while preventing Codex-initiated file changes outside it.
+Run Ralph by passing one or more GitHub issue numbers from within the target Git repository:
 
 ```bash
-cd /path/to/repository
-RALPH_CODEX_SANDBOX=workspace-write ralph prompt.md --issues-file issues.txt
+ralph run <issue_1> [<issue_2> ...]
 ```
 
-Do not use `--dangerously-bypass-approvals-and-sandbox`, `danger-full-access`,
-or the older informal term `--yolo` for this loop: those remove the repository
-boundary. `RALPH_CODEX_SANDBOX=read-only` is available for inspection-only runs, but
-the solve step will then be unable to modify files. The commit-message step
-can still inspect the diff, but it cannot produce a message if there are no
-changes. The host script performs the final `git add` and `git commit`.
-
-### Pi variant
-
-`demo/ralph-pi.sh` provides the same solve-then-commit loop using the
-[Pi coding agent](https://pi.dev/). It requires `pi` instead of `codex` and
-uses `SOLVE_THINKING` / `COMMIT_THINKING` for reasoning configuration.
+**Examples:**
 
 ```bash
-chmod +x demo/ralph-pi.sh
-./demo/ralph-pi.sh prompt.md --issues-file issues.txt
+# Implement a single issue
+ralph run 42
+
+# Implement multiple issues in a single unified PR
+ralph run 42 45 48
+
+# Run with a custom configuration file
+ralph run --config ./config/custom-ralph.json 101 102
 ```
 
-Pi has no equivalent to Codex's repository-bounded filesystem sandbox.
-`RALPH_PI_SANDBOX=read-only` limits Pi to its read-only tools and completes
-each issue as a review-only pass without attempting a commit. The default
-`workspace-write` mode enables Pi's normal write-capable tools and must be
-treated as trusted access to the machine, not as a sandbox.
+### How the Pipeline Works
 
-**Prompt Template Guidelines:**
-The `<prompt.md>` file serves as the base instructions for solving the issue. If you include the token `{{ISSUE}}` anywhere in the file, it will be replaced with the fetched GitHub issue title, body, and URL. If the `{{ISSUE}}` token is missing, the script will automatically append the issue contents to the end of the prompt.
+When `ralph run` is invoked, Ralph guides the task through three distinct phases:
 
-### Environment Variables
+```text
+[Operator] ralph run 42 45
+    │
+    ▼
+[Workspace Setup] Acquires .ralph-lock, creates branch ralph/unified-42-45
+    │
+    ├─► Phase A: Sequential Issue Implementation
+    │     ├── Issue #42: Fresh agent context -> implements code -> commits -> updates .ralph-handoff.md -> ralph.done
+    │     └── Issue #45: Fresh agent context -> implements code -> commits -> updates .ralph-handoff.md -> ralph.done
+    │
+    ├─► Phase B: Unified PR Drafting
+    │     └── Fresh agent context reads all issues & .ralph-handoff.md
+    │         -> writes .ralph/draft-pr.md -> pushes branch -> gh pr create opens PR
+    │
+    └─► Phase C: CI Polling & Auto-Fix Retry Loop
+          ├── Polls GitHub Actions checks
+          ├── Success: All checks pass -> exits 0
+          └── Failure: Extracts failure logs -> spawns fresh agent context to fix -> retries (up to max_retries)
+```
 
-You can configure the behavior of the script via the following environment variables:
+1. **Workspace Safety Lock & Branching:** Ralph creates `.ralph-lock` to prevent conflicting concurrent executions, initializes `.ralph-handoff.md`, and creates a dedicated branch named `ralph/unified-<issues>`.
+2. **Phase A (Sequential Issue Implementation):** For each issue provided:
+   - Fetches the issue title, body, and any referenced specification files (`docs/specs/*.md`) using GitHub CLI.
+   - Spawns a fresh agent session (`codex exec`) with issue details, referenced specs, and prior handoff context.
+   - The agent writes the implementation, verifies changes against tests, creates commits, appends an architectural summary to `.ralph-handoff.md`, and signals completion via `ralph.done`.
+3. **Phase B (Pull Request Drafting):**
+   - Spawns an isolated agent session dedicated solely to writing the PR description.
+   - The agent analyzes `.ralph-handoff.md` and the original issue requirements, generates `.ralph/draft-pr.md`, and pushes the branch to the remote repository.
+   - Ralph reads `.ralph/draft-pr.md` and opens the pull request using `gh pr create`.
+4. **Phase C (CI Polling & Retries):**
+   - Monitors CI check status for the branch via GitHub Actions.
+   - If CI checks pass, Ralph exits cleanly with code 0.
+   - If CI checks fail, Ralph retrieves failure logs (`gh run view --log-failed`), spawns a fresh agent session with the logs and handoff context, and instructs the agent to diagnose, fix, commit, and push.
+   - Retries up to `max_retries` (default: 3).
 
-- `REPO`: The target repository in `owner/repo` format (default: uses `gh`'s current directory detection).
-- `MAX_RETRIES`: Retry count for the code modification/solve step (default: `1`).
-- `COMMIT_MAX_RETRIES`: Retry count for the commit step (default: `1`).
-- `SIGNAL_DIR`: Directory where `.done` and `.escalate` signals, as well as logs, are saved (default: `.ralph`).
-- `SOLVE_MODEL`: The `codex --model` to use for the issue-solving step.
-- `SOLVE_REASONING_EFFORT`: Reasoning effort for the issue-solving step. The script passes this as `-c model_reasoning_effort=<value>`.
-- `COMMIT_MODEL`: The `codex --model` to use for the commit step.
-- `COMMIT_REASONING_EFFORT`: Reasoning effort for the commit step, passed using the same configuration override.
-- `RALPH_CODEX_SANDBOX`: Codex sandbox mode for both steps (default: `workspace-write`). Keep this at `workspace-write` to prevent Codex from modifying files outside the repository root where you started `ralph`. The legacy `CODEX_SANDBOX` name is accepted only for `read-only` and `workspace-write` values.
+### Logs & Troubleshooting
 
-**Configuration Example:**
-You can specify different models and reasoning efforts for solving versus committing. For example, using a stronger model for solving and a faster/cheaper model for creating the commit:
+- **Agent Logs:** All output (stdout and stderr) from every agent session is saved to `.ralph/runs/<run_id>/agent.log` (e.g. `.ralph/runs/issue-42/agent.log`, `.ralph/runs/draft-pr/agent.log`, `.ralph/runs/ci-fix-1/agent.log`).
+- **Escalation (`ralph.escalate`):** If an agent cannot proceed (e.g. due to ambiguous specifications or conflicting requirements), it writes a blocker explanation to `ralph.escalate`. Ralph will cleanly abort and display the escalation reason.
+- **Lockfile (`.ralph-lock`):** If a previous execution terminated abruptly, Ralph checks whether the recorded process is still alive. Stale lockfiles are automatically cleared; active locks from concurrent processes will cause Ralph to halt safely.
+
+---
+
+## Development
+
+Ralph includes a `Makefile` for common development tasks:
 
 ```bash
-SOLVE_MODEL=o3 \
-SOLVE_REASONING_EFFORT=high \
-COMMIT_MODEL=o4-mini \
-COMMIT_REASONING_EFFORT=low \
-ralph prompt.md 101 102 103
+# Build the binary
+make build
+
+# Run unit tests
+make test
+
+# Run unit tests with race detection
+make test-race
+
+# Run unit tests with coverage profile
+make test-cover
+
+# Check code formatting and run go vet
+make lint
+
+# Run pre-flight checks on local workspace
+make validate
+
+# Clean build artifacts
+make clean
 ```
