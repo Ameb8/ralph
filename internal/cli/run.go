@@ -4,11 +4,22 @@ import (
 	"fmt"
 	"strconv"
 
+	"ralph/internal/agent"
+	"ralph/internal/config"
+	ralphErrors "ralph/internal/errors"
+	"ralph/internal/git"
+	"ralph/internal/github"
+	"ralph/internal/orchestrator"
+	"ralph/internal/prompt"
+	"ralph/internal/workspace"
+
 	"github.com/spf13/cobra"
 )
 
 func NewRunCmd() *cobra.Command {
-	return &cobra.Command{
+	var configPath string
+
+	cmd := &cobra.Command{
 		Use:   "run [issues...]",
 		Short: "Run the Ralph pipeline for a set of issues",
 		Args:  cobra.MinimumNArgs(1),
@@ -17,14 +28,44 @@ func NewRunCmd() *cobra.Command {
 			for _, arg := range args {
 				num, err := strconv.Atoi(arg)
 				if err != nil {
-					return fmt.Errorf("invalid issue number: %s", arg)
+					return ralphErrors.NewSystemError(fmt.Errorf("invalid issue number %q: %w", arg, err))
 				}
 				issueNumbers = append(issueNumbers, num)
 			}
 
-			// TODO: Initialize orchestrator and dependencies here
-			fmt.Printf("Working on Issue #%d... (and %d others)\n", issueNumbers[0], len(issueNumbers)-1)
-			return nil
+			cfg, err := config.Load(configPath)
+			if err != nil {
+				return err
+			}
+
+			githubClient := github.NewCLIClient(".")
+			gitClient := git.NewCLIClient(".")
+
+			agentRunner, err := agent.NewRunner(&cfg.Agent)
+			if err != nil {
+				return ralphErrors.NewSystemError(err)
+			}
+
+			ws := workspace.NewFSWorkspace(".")
+			assembler, err := prompt.New()
+			if err != nil {
+				return ralphErrors.NewSystemError(err)
+			}
+
+			orch := orchestrator.New(
+				githubClient,
+				gitClient,
+				agentRunner,
+				ws,
+				assembler,
+				&orchestrator.Config{MaxRetries: cfg.MaxRetries},
+			)
+
+			return orch.Run(cmd.Context(), issueNumbers)
 		},
 	}
+
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to configuration file (defaults to ralph.json)")
+
+	return cmd
 }

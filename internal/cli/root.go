@@ -8,8 +8,10 @@ import (
 
 func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "ralph",
-		Short: "Ralph automated issue-driven development system",
+		Use:           "ralph",
+		Short:         "Ralph automated issue-driven development system",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 
 	cmd.AddCommand(NewRunCmd())
