@@ -18,7 +18,10 @@ type Workspace interface {
 	InitializeHandoff() error
 	ReadHandoff() (string, error)
 
+	ClearSignals() error
+	ReadSignal(sig SignalType) (string, error)
 	WaitForSignal(ctx context.Context) (SignalType, error)
 
 	ExtractSpecs(repoRoot string, specPaths []string) (map[string]string, error)
+	ExtractSpecPaths(issueBody string) []string
 }
