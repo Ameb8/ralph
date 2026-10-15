@@ -1,8 +1,13 @@
 {
   "agent": {
-    "command": "pi",
-    "args": ["run", "--prompt"],
-    "prompt_delivery": "arg",
+    "type": "codex",
+    "codex": {
+      "command": "codex",
+      "model": "",
+      "reasoning_effort": "",
+      "sandbox": "workspace-write",
+      "extra_args": []
+    },
     "env": {}
   },
   "max_retries": 3
