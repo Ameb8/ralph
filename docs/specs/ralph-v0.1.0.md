@@ -20,6 +20,7 @@ Crucially, to maintain high-quality agent focus, V0.1.0 uses **fresh agent conte
 - **Context Handoff:** A mechanism (`.ralph-handoff.md`) for agents to leave notes for subsequent agent sessions about what was built or changed.
 - **Dedicated PR Drafting:** A final, isolated agent session that reads the handoff context and issues to write the unified PR body.
 - **CI Loop:** Polling GitHub Actions for CI status and executing a retry loop (spawning a fresh agent session with failure logs) up to `max_retries`.
+- **Codex CLI Agent Backend:** Initial concrete agent implementation using OpenAI Codex CLI (`codex exec`), abstracted behind a clean runner interface.
 
 ### 1.2 Out of Scope for V0.1.0
 - **Queue Management:** No polling for `ralph-ready` labels.
@@ -27,6 +28,7 @@ Crucially, to maintain high-quality agent focus, V0.1.0 uses **fresh agent conte
 - **Scope Enforcement (Diff checking):** Bypassed for V0.1.0.
 - **GitHub Action PR Trigger:** Instead of a separate `.github/workflows/draft-pr.yml` workflow, the V0.1.0 host script will directly execute `gh pr create` to simplify the initial infrastructure footprint.
 - **Verbose Output & Live Logs:** A `--verbose` flag or streaming live agent stdout/stderr to the user's terminal is out of scope.
+- **Alternative Agent Backends:** Implementing additional coding agents (e.g., Claude Code, Pi, Aider) in V0.1.0. Only Codex CLI is supported in V0.1.0, though the agent abstraction is designed for easy future extension.
 
 ---
 
@@ -41,10 +43,10 @@ The V0.1.0 execution follows a strict pipeline divided into three distinct phase
 4. **Issue Iteration:** For *each* issue in the provided list:
    - Host queries GitHub for the issue body and extracts its referenced `docs/specs/*.md` files.
    - Host builds a prompt combining:
-     - `AGENTS.md`
      - The current `.ralph-handoff.md` (what previous sessions did)
      - The specific Issue body and its Specs
-   - Host spawns a **fresh agent session**.
+     *(Note: `AGENTS.md` is deliberately NOT embedded in the prompt. Codex CLI natively reads repo-level instruction files like `AGENTS.md`, avoiding token duplication).*
+   - Host spawns a **fresh agent session** via the `AgentRunner` interface (invoking `codex exec`).
    - Agent implements the issue, commits chunks, and appends a summary of its work to `.ralph-handoff.md`.
    - Agent signals completion via `ralph.done`. Host terminates this session and moves to the next issue.
    - *Escalation Exception:* If `ralph.escalate` is detected, the host prints the blocker and exits 1 immediately.
@@ -53,7 +55,7 @@ The V0.1.0 execution follows a strict pipeline divided into three distinct phase
 1. **Context Assembly:** After all issues are completed, the host builds a new prompt containing:
    - All target Issue bodies.
    - The final `.ralph-handoff.md` (the summary of all implemented work).
-   - `AGENTS.md` (specifically for the Draft-PR skill).
+   - Explicit instructions directing the agent to execute the repo's Draft-PR skill (defined in `AGENTS.md`).
 2. **PR Agent Session:** Host spawns a **fresh agent session** tasked *only* with drafting the PR.
 3. **Signal & Open:** Agent writes `.ralph/draft-pr.md`, pushes the branch, and writes `ralph.done`. The host reads the draft file and executes `gh pr create`.
 
@@ -70,16 +72,86 @@ The V0.1.0 execution follows a strict pipeline divided into three distinct phase
 
 ## 4. Agent Invocation System
 
-V0.1.0 supports a configurable agent invocation mechanism so the host can work with any agent that accepts a single-shot prompt (pi, codex, claude, etc.).
+For V0.1.0, Ralph exclusively implements and uses the **OpenAI Codex CLI** (`codex exec`) as its initial agent backend. However, to ensure that adding other agent options in the future (e.g., Claude Code, Pi, Aider) is not overly difficult, the system isolates all agent execution behind a clean **`AgentRunner` abstraction seam and factory pattern**. Core orchestration loops interact solely with this abstraction and remain completely agnostic to CLI-specific arguments, process semantics, or flags.
 
-### 4.1 Configuration (`ralph.json`)
+### 4.1 Architecture & Abstraction Seam
+
+The orchestrator has zero knowledge of `codex` CLI specifics. It delegates all agent execution to the `AgentRunner` interface:
+
+```go
+package agent
+
+import "context"
+
+// AgentRunner defines the contract for executing an autonomous coding agent.
+type AgentRunner interface {
+    // RunSession executes a single agent session non-interactively with the provided prompt.
+    // It captures stdout/stderr to .ralph/runs/<runID>/agent.log, respects context cancellation,
+    // and returns an error if the agent process exits non-zero or fails.
+    RunSession(ctx context.Context, runID string, prompt string) error
+}
+```
+
+#### Factory & Future Extensibility
+Agent instances are constructed via a centralized factory (`agent.NewRunner`), which maps the configured agent type to the corresponding `AgentRunner` implementation:
+
+```go
+type Config struct {
+    Type   string                 `mapstructure:"type"`   // e.g., "codex" (default in V0.1.0)
+    Codex  CodexConfig            `mapstructure:"codex"`  // Codex-specific configuration
+    Env    map[string]string      `mapstructure:"env"`    // Environment variables
+}
+
+func NewRunner(cfg *Config) (AgentRunner, error) {
+    switch cfg.Type {
+    case "codex", "": // default to codex in V0.1.0
+        return NewCodexRunner(&cfg.Codex, cfg.Env), nil
+    default:
+        return nil, fmt.Errorf("unsupported agent type %q: V0.1.0 only supports 'codex'", cfg.Type)
+    }
+}
+```
+
+**Adding Future Agents:**  
+When support for a new agent (e.g., `Claude`, `Pi`) is introduced in subsequent releases:
+1. Implement the `AgentRunner` interface in a dedicated file (e.g., `internal/agent/claude.go`).
+2. Add the agent-specific configuration struct under `agent.<name>` in `ralph.json`.
+3. Add a new case to `NewRunner` in `internal/agent/factory.go`.
+No changes are required in the orchestrator, workspace, prompt builder, or pipeline control flows.
+
+### 4.2 Codex CLI Implementation (`CodexRunner`)
+
+In V0.1.0, the `CodexRunner` (`internal/agent/codex.go`) is the concrete implementation of `AgentRunner`. It invokes the Codex CLI non-interactively using the `exec` subcommand:
+
+```text
+codex exec [flags] "<prompt>"
+```
+
+#### Invocation Details & Flag Mapping
+- **Autonomous Execution:** Uses `codex exec` which runs autonomously without interactive confirmation prompts.
+- **Working Directory:** Set to the repository root using `-C <repo_root>` (and the process working directory).
+- **Sandboxing:** Passed via `-s <sandbox_mode>` (default: `workspace-write`), granting write access to the workspace while protecting the rest of the host system.
+- **Model Selection:** If `agent.codex.model` is configured, passed via `-m <model>` (e.g., `-m o3`). If empty, Codex CLI's default model is used.
+- **Reasoning Effort:** If `agent.codex.reasoning_effort` is configured, passed via config override flag `-c model_reasoning_effort="<effort>"` (e.g., `low`, `medium`, `high`).
+- **Prompt Passing:** The generated markdown prompt is passed as the final positional argument to `codex exec`.
+- **Process Lifecycle & Cancellation:** Spawns via `exec.CommandContext(ctx, ...)`. When an interrupt (`SIGINT`/`SIGTERM`) cancels the context, the Codex process and its children are cleanly terminated.
+- **Structured Logging:** Full stdout and stderr from the Codex run are piped and persisted to `.ralph/runs/<run_id>/agent.log` for debugging and post-mortems.
+
+### 4.3 Configuration (`ralph.json`)
+
+System configuration resides in `ralph.json` at the repository root. In V0.1.0, the agent block is configured for Codex:
 
 ```json
 {
   "agent": {
-    "command": "pi",
-    "args": ["run", "--prompt"],
-    "prompt_delivery": "arg",
+    "type": "codex",
+    "codex": {
+      "command": "codex",
+      "model": "",
+      "reasoning_effort": "",
+      "sandbox": "workspace-write",
+      "extra_args": []
+    },
     "env": {}
   },
   "max_retries": 3
@@ -88,74 +160,32 @@ V0.1.0 supports a configurable agent invocation mechanism so the host can work w
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `command` | **yes** | — | The command to invoke (e.g., `pi`, `codex`, `claude`). Must be on PATH or absolute path. |
-| `args` | **yes** | — | Array of base arguments. The prompt is appended or injected based on `prompt_delivery`. |
-| `prompt_delivery` | **yes** | — | One of: `arg` (appends prompt as final arg), `stdin` (writes prompt to stdin), `file` (writes prompt to a temp file, passes path as final arg). |
-| `env` | no | `{}` | Additional environment variables (e.g., API keys). Merged with process env. |
+| `agent.type` | no | `"codex"` | The agent backend to use. In V0.1.0, only `"codex"` is valid (defaults to `"codex"` if omitted). Prepared for future extensions (e.g., `"claude"`, `"pi"`). |
+| `agent.codex.command` | no | `"codex"` | The Codex CLI binary name or absolute path. Must be on `PATH`. |
+| `agent.codex.model` | no | `""` | Model override passed via `-m <model>`. Empty uses Codex CLI defaults. |
+| `agent.codex.reasoning_effort` | no | `""` | Reasoning effort override passed via `-c model_reasoning_effort="<effort>"`. |
+| `agent.codex.sandbox` | no | `"workspace-write"` | Sandbox policy passed via `-s <sandbox_mode>` (`read-only`, `workspace-write`, `danger-full-access`). |
+| `agent.codex.extra_args` | no | `[]` | Additional flags to append directly to `codex exec`. |
+| `agent.env` | no | `{}` | Additional environment variables injected into the agent process (merged with host environment). |
 | `max_retries` | no | `3` | Max CI retry attempts (Phase C). |
 
-### 4.2 Prompt Delivery Modes
+### 4.4 Agent Contract
 
-| Mode | Invocation Example |
-|------|-------------------|
-| `arg` | `pi run --prompt "$PROMPT"` |
-| `stdin` | `pi run --prompt-stdin` (writes prompt to stdin) |
-| `file` | `pi run --prompt-file /tmp/ralph-prompt-123.md` (writes temp file, passes path) |
+Regardless of the underlying agent backend (Codex in V0.1.0, or future runners), any agent invoked by Ralph must adhere to the standard Ralph agent contract:
 
-The host writes the prompt to a temp file for `file` mode, invokes the command, then deletes the temp file after the agent exits.
+1. **Run autonomously:** Execute non-interactively without user confirmation prompts.
+2. **Workspace instruction awareness:** Automatically read and adhere to repo-level instructions from `AGENTS.md` (or tool-specific formats like `CLAUDE.md` provided in the repository). The host will not embed these files into the prompt.
+3. **Completion Signal:** Write `ralph.done` at repo root when the task is complete (content: `success`).
+4. **Escalation Signal:** Write `ralph.escalate` at repo root if blocked (content: one-paragraph blocker description).
+5. **Exit Status:** Exit code 0 on success, non-zero on unrecoverable error (host treats non-zero exit as escalation).
 
-### 4.3 Agent Contract
-
-Any agent invoked by the host must:
-
-1. **Accept the prompt** via the configured delivery mode (`arg`, `stdin`, or `file`).
-2. **Run autonomously** — no interactive prompts, no confirmation prompts.
-3. **Write `ralph.done`** at repo root when the task is complete (content: `success`).
-4. **Write `ralph.escalate`** at repo root if blocked (content: one-paragraph blocker description).
-5. **Exit 0** on success, non-zero on error (host treats non-zero as escalation).
-
-The host does **not** parse agent stdout/stderr. Signal files are the only contract.
-
-### 4.4 Example Configurations
-
-**pi (stdin prompt delivery):**
-```json
-{
-  "agent": {
-    "command": "pi",
-    "args": ["run", "--prompt-stdin"],
-    "prompt_delivery": "stdin"
-  }
-}
-```
-
-**codex (arg delivery):**
-```json
-{
-  "agent": {
-    "command": "codex",
-    "args": ["exec"],
-    "prompt_delivery": "arg"
-  }
-}
-```
-
-**claude (file delivery):**
-```json
-{
-  "agent": {
-    "command": "claude",
-    "args": ["-p"],
-    "prompt_delivery": "file"
-  }
-}
-```
+The host does **not** parse agent stdout/stderr. File IPC signals are the only contract.
 
 ---
 
 ## 5. Skill Contracts
 
-In the Ralph system, "skills" are behavioral contracts written as natural-language instructions in `AGENTS.md`. The agent reads these to know *how* to execute tasks in the repository. 
+In the Ralph system, "skills" are behavioral contracts written as natural-language instructions in `AGENTS.md` (or tool-specific files such as `CLAUDE.md` provided in the repository). We assume the operator uses modern coding agents that automatically ingest repo-level instruction files; therefore, the host does not embed `AGENTS.md` into prompts. The agent reads these repository files directly to know *how* to execute tasks in the repository.
 
 For V0.1.0, the following skill contracts must be defined in `AGENTS.md` and adhered to by the agent across its isolated sessions.
 
@@ -190,10 +220,12 @@ To build this vertical slice efficiently, the implementation should be ordered a
 - Implement CLI arguments parsing for an arbitrary list of issue numbers.
 - Create the outer loop that iterates through the provided issues.
 - Implement `.ralph-handoff.md` creation and state management between loops.
+- Implement the `AgentRunner` interface and the initial `CodexRunner` adapter executing `codex exec`.
+- Implement the agent factory (`agent.NewRunner`) with support for the `"codex"` type and validation for future agent backends.
 - *Test:* Run the script with dummy issues and ensure the host correctly queries GitHub, isolates specs, generates sequential prompts, and waits for `ralph.done` in each step.
 
 ### Phase 2: Dedicated PR Session
-- Write the Draft-PR skill instructions into `AGENTS.md`.
+- Write the Draft-PR skill instructions into `AGENTS.md` (and ensure appropriate agent config files/symlinks exist in the repo).
 - Implement the host logic to spawn the dedicated PR-drafting session once Phase 1 is complete.
 - Implement reading `.ralph/draft-pr.md` and calling `gh pr create`.
 - *Test:* Run an end-to-end flow where multiple issues are implemented, their summaries are handed off, and a cohesive PR is opened on GitHub.
@@ -226,7 +258,7 @@ Communication from the agent to the host (via `ralph.done` or `ralph.escalate`) 
 To allow for fast unit testing of the complex Phase A/B/C orchestration loops without triggering real AI agents or network calls, external side-effects are abstracted behind distinct interfaces:
 - `GitHubClient`: Defines methods like `GetIssue`, `CreatePR`, `GetCIStatus`, and `GetFailedLogs`.
 - `GitClient`: Defines methods like `CreateBranch` and `Push`.
-- `AgentRunner`: Defines `RunSession(ctx, prompt)`.
+- `AgentRunner`: Defines `RunSession(ctx context.Context, runID string, prompt string) error`. Decouples orchestration from the concrete agent CLI (`CodexRunner` in V0.1.0), facilitating straightforward addition of future agent backends.
 
 ### 7.6 Error Taxonomy & Control Flow
 The orchestrator uses typed Go errors to cleanly separate internal failures from expected operational escalations:
@@ -235,7 +267,7 @@ The orchestrator uses typed Go errors to cleanly separate internal failures from
 - `ErrCIFailure`: The system exhausted all `max_retries` during Phase C (Graceful Exit 1 with failure output).
 
 ### 7.7 Prompt Assembly Engine
-Context and prompt assembly uses Go's **`text/template`** engine. Templates are maintained as distinct `.tmpl` files bundled into the binary via `//go:embed`. This decouples the prompt phrasing and layout from the Go orchestration code.
+Context and prompt assembly uses Go's **`text/template`** engine. Templates are maintained as distinct `.tmpl` files bundled into the binary via `//go:embed`. This decouples the prompt phrasing and layout from the Go orchestration code. Prompts assemble issue bodies, referenced specs, and handoff notes without inlining `AGENTS.md`, relying on the agent's native ability to read repository instructions directly.
 
 ### 7.8 CLI UX and Logging
 - **Agent Output Logging:** The host automatically captures the full stdout and stderr for every agent session (issue runs, PR drafting, CI fixes) and saves it to session-specific log files (e.g., `.ralph/runs/<run_id>/`). This provides structured output for post-mortem analysis.

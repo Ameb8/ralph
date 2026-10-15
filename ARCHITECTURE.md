@@ -15,7 +15,7 @@ ralph/
 │   ├── orchestrator/         # Deep module: executes Phase A, B, C pipelines
 │   ├── workspace/            # Deep module: local file state, lockfiles, branching, handoff
 │   ├── prompt/               # Prompt assembly engine (using text/template)
-│   ├── agent/                # Adapter: executes the AI agent (pi, codex)
+│   ├── agent/                # Adapter: executes the AI agent (Codex CLI in V0.1.0)
 │   ├── github/               # Adapter: shells out to `gh` CLI
 │   └── git/                  # Adapter: shells out to `git` CLI
 ├── templates/                # //go:embed templates for prompt assembly
@@ -56,7 +56,7 @@ type GitClient interface {
 ```
 
 **Agent Seam (`internal/agent`)**  
-Hides the specifics of invoking the configured AI agent. It handles prompt delivery modes (`arg`, `stdin`, `file`), manages the subprocess lifecycle, and captures stdout/stderr into `.ralph/runs/<run_id>/` for debugging.
+Hides the specifics of invoking the configured AI agent (`codex` CLI in V0.1.0). It encapsulates CLI execution flags and sandboxing, manages the subprocess lifecycle, and captures stdout/stderr into `.ralph/runs/<run_id>/` for debugging. Future agent backends can be plugged into this seam via the `AgentRunner` interface.
 
 ```go
 type AgentRunner interface {
