@@ -1,0 +1,22 @@
+# Task: Fix CI Failure
+
+Continuous Integration checks failed for the current branch. Your task is to inspect the failure, fix the offending code or tests, verify locally, and push the fix.
+
+## CI Failure Logs
+```text
+{{ .Logs }}
+```
+
+{{ if .Handoff }}
+## Architecture & Handoff Context (.ralph-handoff.md)
+{{ .Handoff }}
+{{ end }}
+
+## Instructions
+1. Inspect the CI failure logs above to diagnose the root cause.
+2. Fix the broken code or tests in the workspace.
+3. Run the local test suite and linters to verify that everything passes cleanly.
+4. Commit your changes (or amend the previous commit if appropriate).
+5. Push the branch to the remote (`git push -u origin HEAD` or `git push --force-with-lease -u origin HEAD` if amended).
+6. When the fix is committed and pushed, write the file `ralph.done` with content `success` at the repository root.
+7. If genuinely blocked and unable to resolve the failure, write `ralph.escalate` at the repository root describing the blocker, and stop.

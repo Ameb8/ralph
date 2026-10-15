@@ -1,0 +1,29 @@
+# Task: Implement Issue #{{ .Issue.Number }}: {{ .Issue.Title }}
+
+## Issue Description
+{{ .Issue.Body }}
+
+{{ if .Specs }}
+## Referenced Specifications
+{{ range $path, $content := .Specs }}
+### {{ $path }}
+```markdown
+{{ $content }}
+```
+{{ end }}
+{{ end }}
+
+{{ if .Handoff }}
+## Previous Session Handoff (.ralph-handoff.md)
+The following work was completed in earlier sessions for this batch:
+{{ .Handoff }}
+{{ end }}
+
+## Instructions
+1. Implement the requirements and acceptance criteria for Issue #{{ .Issue.Number }}.
+2. Run tests, linter, and formatters after completing each logical chunk of work.
+3. Commit completed chunks using Conventional Commits with the issue reference:
+   `<type>(<scope>): <description> (#{{ .Issue.Number }})`
+4. Before completing, append a brief bulleted summary of what you implemented, new files created, or major architectural decisions to `.ralph-handoff.md`.
+5. When work is complete and tests pass, write the file `ralph.done` with content `success` at the repository root.
+6. If you are genuinely blocked and cannot proceed, write the file `ralph.escalate` at the repository root containing one paragraph describing the blocker, and stop.
