@@ -1,0 +1,59 @@
+templates/issue.tmpl
+  s_5ec5c84aab7660::t_66822f62724c03 1-3
+ralph-v1.sh
+  s_ae5abb26f9ba02::t_43dedd8442c009 1-156
+.agent/.worktree/commits/main-commit-plan.md
+  h_11a994996f9bb9 29,56,80
+  s_4d897781e6e5ac::t_29fc0ac51479b3 1-28,30-55,57-79,81-99
+demo/ralph-pi.sh
+  s_135ef8e0e63451::t_80b8b30f0d8db3 232,254-270,284,353,365,370
+templates/embed.go
+  s_5ec5c84aab7660::t_010df32806890f 1-6
+internal/orchestrator/errors.go
+  s_5ec5c84aab7660::t_61ca4a9b00eb27 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "e5a2fa3c2aeef659e7ce34b3fcb81b5629809e83",
+  "prompts": {},
+  "humans": {
+    "h_11a994996f9bb9": {
+      "author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  },
+  "sessions": {
+    "s_135ef8e0e63451": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a05fda-57d6-7158-9e7c-ce17fd26ebfb",
+        "model": "vx-gemini-3.7-f"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_4d897781e6e5ac": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f8db8-dfde-7441-b30b-9ca4b1a9cd7a",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_5ec5c84aab7660": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f716b-b70f-771b-8acb-4f025ab722bd",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_ae5abb26f9ba02": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f64d7-e501-715e-9f95-a837abc0b2cc",
+        "model": "vx-gemini-3.1-p"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
