@@ -229,7 +229,7 @@ ${issue_block}"
 
   done_signal="${SIGNAL_DIR}/issue-${issue}.done"
   escalate_signal="${SIGNAL_DIR}/issue-${issue}.escalate"
-  rm -f "$done_signal" "$escalate_signal"
+  rm -f "$done_signal" "$escalate_signal" ralph.done ralph.escalate ralph.escelate "${SIGNAL_DIR}/ralph.done" "${SIGNAL_DIR}/ralph.escalate" "${SIGNAL_DIR}/ralph.escelate"
 
   attempt=1
   success=0
@@ -251,6 +251,23 @@ ${issue_block}"
         solve_exit=$?
       fi
     fi
+
+    # Check if agent signaled escalation via signal file
+    escalation_file=""
+    for ef in ralph.escalate ralph.escelate "${SIGNAL_DIR}/ralph.escalate" "${SIGNAL_DIR}/ralph.escelate"; do
+      if [[ -f "$ef" ]]; then
+        escalation_file="$ef"
+        break
+      fi
+    done
+
+    if [[ -n "$escalation_file" ]]; then
+      touch "$escalate_signal"
+      echo "Issue #${issue}: agent escalated via ${escalation_file}:" >&2
+      cat "$escalation_file" >&2
+      exit 1
+    fi
+
     if [[ $solve_exit -eq 0 ]]; then
       echo "--- Pi summary for issue #${issue} ---"
       sed -n '1,160p' "$solve_summary" 2>/dev/null || true
@@ -264,7 +281,7 @@ ${issue_block}"
   if [[ $success -ne 1 ]]; then
     touch "$escalate_signal"
     echo "Issue #${issue}: escalated after ${MAX_RETRIES} attempt(s)" >&2
-    continue
+    exit 1
   fi
 
   # Pi's read-only tool allowlist deliberately excludes bash, so it cannot
@@ -333,7 +350,7 @@ ${issue_block}"
     if ! git add -A; then
       echo "Issue #${issue}: solved but host git add failed" >&2
       touch "$commit_escalate_signal"
-      continue
+      exit 1
     fi
 
     if git diff --cached --quiet; then
@@ -345,10 +362,12 @@ ${issue_block}"
     else
       echo "Issue #${issue}: solved but host git commit failed" >&2
       touch "$commit_escalate_signal"
+      exit 1
     fi
   else
     touch "$commit_escalate_signal"
     echo "Issue #${issue}: solved but commit escalated after ${COMMIT_MAX_RETRIES} attempt(s)" >&2
+    exit 1
   fi
 done
 
